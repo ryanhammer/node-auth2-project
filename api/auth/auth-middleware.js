@@ -1,7 +1,35 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { JWT_SECRET } = require("../secrets"); // use this secret!
 
 const Users = require("../users/users-model.js");
+
+const checkNewUserCredentials = (req, res, next) => {
+  const { username, password } = req.body;
+  const valid = Boolean(username && password && typeof password === "string");
+
+  if (valid) {
+    next();
+  } else {
+    res.status(422).json({
+      message: 'Please provide username and password and the password shoud be alphanumeric'
+    });
+  }
+};
+
+const checkLoginCredentials = (req, res, next) => {
+  let { username, password } = req.body;
+
+  Users.findBy({ username })
+    .then(([user]) => {
+      if (user && bcrypt.compareSync(password, user.password)) {
+        next();
+      } else {
+        res.status(401).json({ message: 'Invalid Credentials' });
+      }
+    })
+    .catch(next);
+}
 
 const restricted = (req, res, next) => {
   const token = req.headers.authorization;
@@ -121,8 +149,10 @@ const validateRoleName = (req, res, next) => {
 }
 
 module.exports = {
+  checkNewUserCredentials,
+  checkLoginCredentials,
   restricted,
   checkUsernameExists,
   validateRoleName,
-  only,
+  only
 }
