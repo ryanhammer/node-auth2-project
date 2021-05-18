@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const { JWT_SECRET } = require("../secrets"); // use this secret!
 
+const Users = require("../users/users-model.js");
+
 const restricted = (req, res, next) => {
   const token = req.headers.authorization;
   if (token) {
@@ -58,6 +60,19 @@ const only = role_name => (req, res, next) => {
 
 
 const checkUsernameExists = (req, res, next) => {
+  Users.findBy(req.body.username)
+    .then(([user]) => {
+      if (user) {
+        next();
+      } else {
+        res.status(401).json({
+            message: "Invalid credentials"
+        });
+      }
+    })
+    .catch(err => {
+      next(err);
+    })
   /*
     If the username in req.body does NOT exist in the database
     status 401
@@ -69,6 +84,22 @@ const checkUsernameExists = (req, res, next) => {
 
 
 const validateRoleName = (req, res, next) => {
+  const role_name = req.body.role_name;
+  if (!role_name || role_name.trim().length === 0) {
+    req.body.role_name = 'student';
+    next();
+  } else if (role_name.trim() === 'admin') {
+    res.status(422).json({
+      message: 'Role name can not be admin'
+    });
+  } else if (role_name.trim() > 32) {
+    res.status(422).json({
+      message: 'Role name can not be longer than 32 chars'
+    });
+  } else {
+    req.body.role_name = role_name.trim();
+    next();
+  }
   /*
     If the role_name in the body is valid, set req.role_name to be the trimmed string and proceed.
 
