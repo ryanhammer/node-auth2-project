@@ -1,8 +1,25 @@
 const router = require("express").Router();
-const { checkUsernameExists, validateRoleName } = require('./auth-middleware');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const { checkNewUserCredentials, checkLoginCredentials, checkUsernameExists, validateRoleName } = require('./auth-middleware');
 const { JWT_SECRET } = require("../secrets"); // use this secret!
 
-router.post("/register", validateRoleName, (req, res, next) => {
+const Users = require("../users/users-model.js");
+
+router.post("/register", checkNewUserCredentials, validateRoleName, (req, res, next) => {
+  let user = req.body;
+
+  const hashRounds = process.env.BCRYPT_ROUNDS || 12;
+  const hashedPassword = bcrypt.hashSync(user.password, hashRounds);
+
+  user.password = hashedPassword;
+
+  Users.add(user)
+    .then(savedUser => {
+      res.status(201).json(savedUser);
+    })
+    .catch(next);
+
   /**
     [POST] /api/auth/register { "username": "anna", "password": "1234", "role_name": "angel" }
 
@@ -17,7 +34,31 @@ router.post("/register", validateRoleName, (req, res, next) => {
 });
 
 
-router.post("/login", checkUsernameExists, (req, res, next) => {
+router.post("/login", checkUsernameExists, checkLoginCredentials, (req, res, next) => { // eslint-disable-line
+  const user = req.body;
+  const tokenBuilder = (user) => {
+    const payload = {
+      sub: user.id,
+      username: user.username,
+      role: user.role
+    };
+    const options = {
+      expiresIn: '2h',
+  
+    };
+    const result = jwt.sign(
+      payload,
+      JWT_SECRET,
+      options
+    );
+    return result;
+  }
+  const token = tokenBuilder(user);
+  res.status(200).json({
+    message: `${user.username} is back!`,
+    token: token
+  });
+
   /**
     [POST] /api/auth/login { "username": "sue", "password": "1234" }
 
